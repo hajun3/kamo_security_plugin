@@ -244,8 +244,8 @@ ask_approval() {
         exit 0
     fi
 
-    # 첫 시도 → 승인 파일 생성 후 경고 출력
-    touch "$APPROVAL_FILE"
+    # 승인 파일 없음 → 경고만 출력하고 차단
+    # 승인 파일은 Claude가 사용자 확인 후 직접 생성해야 함 (자동 생성 금지)
     log_json "WARNED" "$category" "$COMMAND" "$pattern"
 
     echo "" >&2
@@ -266,6 +266,7 @@ ask_approval() {
     echo "" >&2
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
     echo "❓  진행하려면 저에게 '그래도 진행해줘'라고 말씀해주세요." >&2
+    echo "🔑  APPROVAL_TOKEN:$APPROVAL_FILE" >&2
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
 
     exit 2

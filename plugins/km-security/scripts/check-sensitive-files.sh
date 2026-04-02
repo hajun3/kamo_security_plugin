@@ -148,19 +148,20 @@ for pattern in "${PROTECTED_PATTERNS[@]}"; do
         echo "    잘못 수정하면 서비스 장애나 보안 사고로 이어질 수 있어요." >&2
         echo "" >&2
 
-        # 승인 파일이 있으면 → 사용자가 이미 확인하고 진행 승인한 것
+        # 승인 파일이 있으면 → 사용자가 확인하고 Claude가 직접 생성한 것
         if [ -f "$APPROVAL_FILE" ]; then
             rm -f "$APPROVAL_FILE"
             log_json "APPROVED" "민감파일편집" "$FILE_PATH" "$pattern"
             exit 0
         fi
 
-        # 첫 시도 → 승인 파일 생성 후 경고 출력
-        touch "$APPROVAL_FILE"
+        # 승인 파일 없음 → 경고만 출력하고 차단
+        # 승인 파일은 Claude가 사용자 확인 후 직접 생성해야 함 (자동 생성 금지)
         log_json "WARNED" "민감파일편집" "$FILE_PATH" "$pattern"
 
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
         echo "❓  진행하려면 저에게 '그래도 진행해줘'라고 말씀해주세요." >&2
+        echo "🔑  APPROVAL_TOKEN:$APPROVAL_FILE" >&2
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
         exit 2
     fi
