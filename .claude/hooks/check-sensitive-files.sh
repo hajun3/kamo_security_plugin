@@ -157,7 +157,7 @@ for pattern in "${PROTECTED_PATTERNS[@]}"; do
 
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
         echo "❓  진행하려면 저에게 '그래도 진행해줘'라고 말씀해주세요." >&2
-        echo "🔑  APPROVAL_TOKEN:$APPROVAL_FILE" >&2
+        echo "🔑  승인하려면 먼저 이 명령을 실행하세요: touch $APPROVAL_FILE" >&2
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
         exit 2
     fi
