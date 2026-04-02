@@ -1,6 +1,6 @@
 {
   "name": "km-security-marketplace",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "카카오모빌리티 보안 플러그인 마켓플레이스",
   "owner": {
     "name": "Kakao Mobility"
@@ -9,7 +9,7 @@
     {
       "name": "km-security",
       "description": "비개발자도 안전하게 바이브코딩 - 위험한 작업 감지 시 친절한 설명과 함께 사용자 승인을 요청합니다.",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "author": {
         "name": "Kakao Mobility"
       },
