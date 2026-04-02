@@ -20,6 +20,8 @@ DESTRUCTIVE_PATTERNS=(
     'rm -rf'
     'rm -r '
     'rm --recursive'
+    '^rm '
+    'rmdir'
     'mkfs\.'
     'dd if=.* of=/dev/'
     '> /dev/sd'
