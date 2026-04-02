@@ -25,7 +25,7 @@ LOG_FILE="$LOG_DIR/$(date +%Y-%m-%d).jsonl"
 
 APPROVAL_DIR="$HOME/.claude/security-approvals"
 mkdir -p "$APPROVAL_DIR"
-find "$APPROVAL_DIR" -mmin +5 -delete 2>/dev/null || true
+find "$APPROVAL_DIR" -mmin +0.5 -delete 2>/dev/null || true
 APPROVAL_KEY=$(printf 'file:%s' "$FILE_PATH" | cksum | awk '{print $1}')
 APPROVAL_FILE="$APPROVAL_DIR/$APPROVAL_KEY"
 

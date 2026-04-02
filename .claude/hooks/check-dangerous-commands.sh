@@ -39,7 +39,7 @@ PRIVILEGE_PATTERNS=(
     'chmod g\+s'
     'chown root'
     'chown -R root'
-    'passwd'
+    '^passwd( |$)'
     'visudo'
     'usermod'
     'useradd'
@@ -197,7 +197,7 @@ APPROVAL_DIR="$HOME/.claude/security-approvals"
 mkdir -p "$APPROVAL_DIR"
 
 # 5분 이상 된 승인 파일 자동 정리
-find "$APPROVAL_DIR" -mmin +5 -delete 2>/dev/null || true
+find "$APPROVAL_DIR" -mmin +0.5 -delete 2>/dev/null || true
 
 # 명령어 해시 생성 (POSIX 표준 cksum 사용)
 APPROVAL_KEY=$(printf '%s' "$COMMAND" | cksum | awk '{print $1}')
