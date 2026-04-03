@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # ============================================================
-# KM Security Plugin - 위험 명령 감지 및 사용자 승인 요청
+# KM Security Plugin v2.0 - 위험 명령 감지 및 systemMessage 경고
 #
 # Claude Code가 bash 명령을 실행하기 전에 자동 실행됩니다.
-# 위험한 명령이 감지되면 사용자에게 친절하게 설명하고 승인을 구합니다.
+# 위험한 명령이 감지되면 systemMessage로 Claude에게 경고를 주입합니다.
+# 실제 차단은 하네스의 permissions 시스템이 담당합니다.
 # ============================================================
 set -uo pipefail
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
+COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))")
 
 LOG_DIR="$HOME/.claude/security-logs"
 mkdir -p "$LOG_DIR"
@@ -28,7 +29,6 @@ DESTRUCTIVE_PATTERNS=(
     'format [cCdD]:'
     ':(){.*:;};'
     'truncate -s 0'
-    '> /dev/null 2>&1 &.*rm'
 )
 
 PRIVILEGE_PATTERNS=(
@@ -193,18 +193,6 @@ OBFUSCATION_PATTERNS=(
     'printf.*\\\\x'
 )
 
-# ── 승인 파일 설정 ──────────────────────────────────────────
-
-APPROVAL_DIR="$HOME/.claude/security-approvals"
-mkdir -p "$APPROVAL_DIR"
-
-# 5분 이상 된 승인 파일 자동 정리
-find "$APPROVAL_DIR" -mmin +0.5 -delete 2>/dev/null || true
-
-# 명령어 해시 생성 (POSIX 표준 cksum 사용)
-APPROVAL_KEY=$(printf '%s' "$COMMAND" | cksum | awk '{print $1}')
-APPROVAL_FILE="$APPROVAL_DIR/$APPROVAL_KEY"
-
 # ── 로그 함수 ────────────────────────────────────────────────
 
 log_json() {
@@ -215,60 +203,47 @@ log_json() {
     local timestamp
     timestamp=$(date '+%Y-%m-%dT%H:%M:%S%z')
 
-    jq -n -c \
-        --arg ts "$timestamp" \
-        --arg st "$status" \
-        --arg cat "$category" \
-        --arg cmd "$cmd" \
-        --arg pat "$pattern" \
-        --arg user "${USER:-unknown}" \
-        --arg pwd "${PWD:-unknown}" \
-        '{timestamp: $ts, status: $st, category: $cat, command: $cmd, pattern: $pat, user: $user, cwd: $pwd}' \
-        >> "$LOG_FILE"
+    python3 -c "
+import json, sys
+entry = {
+    'timestamp': sys.argv[1],
+    'status': sys.argv[2],
+    'category': sys.argv[3],
+    'command': sys.argv[4],
+    'pattern': sys.argv[5],
+    'user': sys.argv[6],
+    'cwd': sys.argv[7],
+}
+print(json.dumps(entry, ensure_ascii=False))
+" "$timestamp" "$status" "$category" "$cmd" "$pattern" "${USER:-unknown}" "${PWD:-unknown}" >> "$LOG_FILE"
 }
 
-# ── 경고 및 승인 요청 함수 ──────────────────────────────────
+# ── systemMessage 경고 출력 함수 ────────────────────────────
 
-ask_approval() {
+emit_warning() {
     local category="$1"
     local friendly_name="$2"
     local explanation="$3"
     local checklist="$4"
     local pattern="$5"
 
-    # 승인 파일이 있으면 → 사용자가 이미 확인하고 진행 승인한 것
-    if [ -f "$APPROVAL_FILE" ]; then
-        rm -f "$APPROVAL_FILE"
-        log_json "APPROVED" "$category" "$COMMAND" "$pattern"
-        exit 0
-    fi
-
-    # 승인 파일 없음 → 경고만 출력하고 차단
-    # 승인 파일은 Claude가 사용자 확인 후 직접 생성해야 함 (자동 생성 금지)
     log_json "WARNED" "$category" "$COMMAND" "$pattern"
 
-    echo "" >&2
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-    echo "🔴  잠깐요! 위험할 수 있는 작업이 감지되었습니다." >&2
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-    echo "" >&2
-    echo "📋  작업 유형: $friendly_name" >&2
-    echo "" >&2
-    echo "⚠️   왜 위험한가요?" >&2
-    echo "$explanation" | while IFS= read -r line; do echo "    $line" >&2; done
-    echo "" >&2
-    echo "✅  진행해도 되는지 확인해 주세요:" >&2
-    echo "$checklist" | while IFS= read -r line; do echo "    $line" >&2; done
-    echo "" >&2
-    echo "💻  감지된 명령:" >&2
-    echo "    $COMMAND" >&2
-    echo "" >&2
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-    echo "❓  진행하려면 저에게 '그래도 진행해줘'라고 말씀해주세요." >&2
-    echo "🔑  승인하려면 먼저 이 명령을 실행하세요: touch $APPROVAL_FILE" >&2
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+    # systemMessage로 Claude에게 경고 주입 (exit 0 — 차단은 하네스가 담당)
+    python3 -c "
+import json, sys
+warning = (
+    '[KM 보안 경고] ' + sys.argv[1] + ': ' + sys.argv[2] + '\n\n'
+    '⚠️ 왜 위험한가요?\n' + sys.argv[3] + '\n\n'
+    '✅ 확인사항:\n' + sys.argv[4] + '\n\n'
+    '💻 감지된 명령: ' + sys.argv[5] + '\n\n'
+    '📌 이 정보를 사용자에게 한국어로 친절하게 설명해주세요. '
+    '하네스 권한 시스템이 사용자에게 실행 여부를 물어볼 것입니다.'
+)
+print(json.dumps({'systemMessage': warning}, ensure_ascii=False))
+" "$category" "$friendly_name" "$explanation" "$checklist" "$COMMAND"
 
-    exit 2
+    exit 0
 }
 
 # ── 검사 함수 ────────────────────────────────────────────────
@@ -283,7 +258,7 @@ check_patterns() {
 
     for pattern in "${patterns[@]}"; do
         if echo "$COMMAND" | grep -qEi "$pattern"; then
-            ask_approval "$category" "$friendly_name" "$explanation" "$checklist" "$pattern"
+            emit_warning "$category" "$friendly_name" "$explanation" "$checklist" "$pattern"
         fi
     done
 }

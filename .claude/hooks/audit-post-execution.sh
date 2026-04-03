@@ -9,10 +9,10 @@ set -euo pipefail
 
 INPUT=$(cat)
 
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
-EXIT_CODE=$(echo "$INPUT" | jq -r '.tool_output.exit_code // "unknown"')
+COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))")
+EXIT_CODE=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_output',{}).get('exit_code','unknown'))")
 # stdout은 길 수 있으므로 앞 500자만 기록
-STDOUT_PREVIEW=$(echo "$INPUT" | jq -r '.tool_output.stdout // ""' | head -c 500)
+STDOUT_PREVIEW=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_output',{}).get('stdout','')[:500])")
 
 LOG_DIR="$HOME/.claude/security-logs"
 mkdir -p "$LOG_DIR"
@@ -20,16 +20,19 @@ LOG_FILE="$LOG_DIR/$(date +%Y-%m-%d).jsonl"
 
 timestamp=$(date '+%Y-%m-%dT%H:%M:%S%z')
 
-jq -n -c \
-    --arg ts "$timestamp" \
-    --arg st "EXECUTED" \
-    --arg cat "감사로그" \
-    --arg cmd "$COMMAND" \
-    --arg exit "$EXIT_CODE" \
-    --arg out "$STDOUT_PREVIEW" \
-    --arg user "${USER:-unknown}" \
-    --arg pwd "${PWD:-unknown}" \
-    '{timestamp: $ts, status: $st, category: $cat, command: $cmd, exit_code: $exit, output_preview: $out, user: $user, cwd: $pwd}' \
-    >> "$LOG_FILE"
+python3 -c "
+import json, sys
+entry = {
+    'timestamp': sys.argv[1],
+    'status': 'EXECUTED',
+    'category': '감사로그',
+    'command': sys.argv[2],
+    'exit_code': sys.argv[3],
+    'output_preview': sys.argv[4],
+    'user': sys.argv[5],
+    'cwd': sys.argv[6],
+}
+print(json.dumps(entry, ensure_ascii=False))
+" "$timestamp" "$COMMAND" "$EXIT_CODE" "$STDOUT_PREVIEW" "${USER:-unknown}" "${PWD:-unknown}" >> "$LOG_FILE"
 
 exit 0
